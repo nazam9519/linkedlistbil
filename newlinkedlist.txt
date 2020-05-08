@@ -1,0 +1,233 @@
+#include<stdio.h>
+#include<string.h>
+#include<wchar.h>
+#include<stdlib.h>
+#define buffsize 72
+
+//#include "nbllnklst.h"
+//#include "nblflhndl.h"
+const char* check = "DEFINE QREMOTE(BLAHBLAH)";
+const char* check2 = "DEFINE QREMOTE(";
+const char* check3 = "QSGDISP(";
+const char* check4 = "RQMNAME(";
+FILE* parmFile;
+FILE* openappend; 
+
+struct stringList{
+	char* readstring;               //pointer to string 
+	char *otherdata;               //pointer to string 
+	struct stringList *next;        //pointer to next item in list 
+};
+
+typedef struct {
+	char* QName;
+	char* Rqmgr;
+}finalOP;
+
+typedef struct stringList listAlias; //create ListAlias type (alias to StringList struct)
+typedef listAlias* ListNodePtr;      //pointer to stringList
+
+void insert(ListNodePtr *startPtr, char *string);                   //init functions 
+int delete(ListNodePtr *startPtr, char *string);
+int isEmpty(ListNodePtr startPtr);
+void printit(ListNodePtr currentPtr);
+void change(ListNodePtr *currentPtr);
+int checkData(char* otherDat);
+int openFiles();
+void printtoFile(char *);
+void stringBuilder(char**, size_t,char *,char *);
+
+int main(int argc, char** argv) {
+	char* argumentcopy;
+	ListNodePtr startPoint = NULL;                             //first item in the list will now be set to null 
+	char fileline[buffsize] = { 0 };
+		
+	if (!openFiles()) {
+		printf("problems\n");
+		exit(12);
+	}
+	printf("--------------------------\n");
+	printf("Beginning Insert and Print\n");
+	printf("--------------------------\n");
+	//for (int x = 0; x < 3; x++) {
+	while(fgets(fileline,sizeof(fileline),parmFile) != NULL){
+		if (fileline[0] == '*') {
+			printtoFile(fileline);
+		}
+		else {
+			strtok(fileline, "+\n");
+			/*argumentcopy = malloc(strlen(argv[1]) + 1);
+			snprintf(argumentcopy, strlen(argv[1]), argv[1]);*/
+			insert(&startPoint, fileline);
+			printit(startPoint);
+		}
+	}
+	change(&startPoint);
+	printf("\n");
+	printf("------------------------------\n");
+	printf("Delete list from the beginning\n");
+	printf("------------------------------\n");	
+
+	while(!isEmpty(startPoint)){ 
+		delete(&startPoint, fileline);
+		printit(startPoint);
+	}
+	return 0;
+}
+
+void insert(ListNodePtr* startPtr, char* string) {
+	ListNodePtr newP;
+	ListNodePtr prevP;
+	ListNodePtr currP;
+
+	newP = malloc(sizeof(listAlias));                                             //allocate memory for new element in list 
+	if (newP != NULL) {                                                           //check to see if memory was allocated
+		newP->readstring = malloc(strlen(string) + 1);                            //initialize string in structure stringList.readstring must (char *) casts the type to a char pointer for malloc since it returns a void pointer
+		snprintf(newP->readstring,strlen(string)+1,string);
+		newP->next = NULL;                                                        //set pointer to the next item to be null after updating the element
+		prevP = NULL;                                                             //set previous pointer to null
+		currP = *startPtr;                                                        //make sure the current pointer = the pointer that was passed (current node in list)
+		/*find locationn of item in the list*/
+		while (currP != NULL) {
+
+			prevP = currP;
+			currP = currP->next; //next node
+		}
+		
+		/*insert new node at beginning*/
+		if (prevP == NULL) {
+			newP->next = *startPtr;
+			*startPtr = newP;
+		}
+		/*insert between two nodes or at the end*/
+		else {
+			prevP->next = newP;           
+			newP->next = currP;
+		}
+	}
+	else { 
+		printf("failed to insert\n");
+	}
+}
+
+int delete(ListNodePtr* startPtr, char* string) {
+	ListNodePtr tempP;
+	ListNodePtr prevP;
+	ListNodePtr currP;
+	printf("\n");
+	printf("current string pointer %s %d\n", (*startPtr)->readstring, strlen((*startPtr)->readstring));
+	tempP = *startPtr;
+	(*startPtr) = (*startPtr)->next;
+	free(tempP->readstring);
+	free(tempP);
+	return 0;
+}
+
+int isEmpty(ListNodePtr startPoint) {
+	return startPoint == NULL;
+}
+
+void printit(ListNodePtr currP) {
+	if (currP == NULL) {
+		printf("List is Empty\n");
+	}
+	else {
+		
+		fprintf(stdout,"the list is:\n");
+		fflush(stdout);
+		while (currP != NULL) {
+			fprintf(stdout,"%s ->  ", currP->readstring);
+			fflush(stdout);
+			currP = currP->next;
+		}
+		printf("NULL\n");
+	}
+}
+
+void change(ListNodePtr *currentPtr)
+{
+	ListNodePtr tempP;
+	ListNodePtr currP;
+	finalOP* putOp;
+	tempP = *currentPtr;
+	currP = *currentPtr;
+	currP = currP->next;
+	const char* workstr = "RET.REMOTE.REQUEST";
+	const char* qmgnm = "QMPRET11";
+	char tempCP[23] = { 0 };
+	
+	
+	putOp = malloc(sizeof(finalOP));
+
+	while (tempP != NULL) {
+		//if (!strncmp(tempP->readstring, check2, strlen(check2))) {
+		int returnc = checkData(tempP->readstring);
+		if (returnc == 0) {
+			stringBuilder(&putOp->QName,((strlen(check2)+strlen(workstr))+1),check2,workstr);
+			printf("workstring: %s\n", putOp->QName);			
+		}
+		else if(returnc == 4){
+			stringBuilder(&putOp->Rqmgr,((strlen(check4) + strlen(qmgnm)) + 1), check4, qmgnm);
+			printf("workstring2: %s\n", putOp->Rqmgr);
+		}
+		else {
+			printtoFile(tempP->readstring);
+		}
+		if (currP == NULL) {
+			tempP = tempP->next;
+		}
+		else {
+			tempP = tempP->next;
+			currP = currP->next;
+		}
+	}
+	/*fprintf(openappend,"%s\n",putOp->QName);
+	fprintf(openappend, "%s\n", putOp->Rqmgr);*/
+	
+	free(putOp->QName);
+	free(putOp->Rqmgr);
+	free(putOp);
+}
+
+int openFiles() {
+	return ((openappend = fopen("C:\\Users\\Nub\\Documents\\testfile.txt", "ab+")) && (parmFile = fopen("C:\\Users\\Nub\\Documents\\remotedef.txt", "r")));
+}
+
+void printtoFile(char *string) {
+	fprintf(openappend,"%s\n",string);
+}
+
+void stringBuilder(char** strptr, size_t allocsz,char *formatter,char *formatter2){
+	
+	char* newstr = malloc(allocsz);
+	snprintf(newstr, strlen(formatter) + 1, formatter);
+	strcat(newstr, formatter2);
+	*strptr = newstr;
+}
+
+
+int checkData(char* otherDat)
+{
+	return (!strncmp(otherDat, check2, strlen(check2)) ? 0 : (!strncmp(otherDat, check4, strlen(check4)) ? 4 : 8));	
+}
+
+/*else {
+		prevP = *startPtr;
+		currP = (*startPtr)->next;
+
+		while (currP != NULL && !(memcmp(string, currP->readstring, 6))) {
+
+			prevP = currP;
+			currP = currP->next;
+		}
+		if (currP != NULL) {
+			tempP = currP;
+			prevP->next = currP->next;
+			("deleting initial item\n");
+			free(tempP);
+			return 0;
+		}
+	}*/
+
+
+
